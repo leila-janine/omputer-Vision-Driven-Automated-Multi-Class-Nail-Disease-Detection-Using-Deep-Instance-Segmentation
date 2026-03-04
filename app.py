@@ -16,7 +16,6 @@ MASK_ALPHA = 0.5 # Transparency of the segmentation masks (0.0 to 1.0)
 PROJECT_GROUP_NAME = "youngstunna" # Your group name
 
 # --- Inject Custom CSS ---
-# (Same CSS as provided in the previous response - included here for completeness)
 st.markdown("""
 <style>
 /* --- General App Styling --- */
@@ -42,12 +41,6 @@ footer { visibility: hidden; }
     background-color:#0047AB; /* Light blue-gray page background */
     border-radius: 10px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-}
-
-/* --- Column Styling --- */
-/* Target the div containing the columns */
-div[data-testid="stHorizontalBlock"] {
-    /* Optional: Add styles if needed */
 }
 
 /* --- Left Panel Styling (Blue) --- */
@@ -129,8 +122,6 @@ def load_yolo_model(model_path):
     """Loads the YOLO model."""
     try:
         model = YOLO(model_path)
-        # Perform a dummy inference to ensure model loads correctly (optional)
-        # model(np.zeros((640, 640, 3), dtype=np.uint8))
         return model
     except Exception as e:
         print(f"Error loading model: {e}") # Log error for debugging
@@ -141,7 +132,6 @@ col1, col2 = st.columns([1, 1.2], gap="large") # Give slightly more space to rig
 
 # --- Content for Left Column (Blue Area) ---
 with col1:
-    # st.image("your_logo.png", width=150) # Replace with your logo if you have one
     st.header("Nail Disease Segmentation")
     st.write(f"""
         An AI-powered application developed by **Group {PROJECT_GROUP_NAME}** for the AI2 T1 AY2526 course.
@@ -177,7 +167,8 @@ with col2:
                 img_cv = np.array(image.convert('RGB'))
                 img_cv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2BGR)
 
-                result_placeholder.image(image, caption='Uploaded Image.', use_container_width=True)
+                # FIX 1: Changed use_container_width to use_column_width
+                result_placeholder.image(image, caption='Uploaded Image.', use_column_width=True)
 
                 # Use st.spinner for the processing block
                 with st.spinner("Analyzing image..."):
@@ -245,21 +236,18 @@ with col2:
                     if is_only_healthy:
                         message_placeholder.success("Healthy nail detected. No diseases found based on the analysis.")
                         result_image_rgb = cv2.cvtColor(overlay_image, cv2.COLOR_BGR2RGB)
-                        # Update the result placeholder with the processed image
-                        result_placeholder.image(result_image_rgb, caption='Processed Image - Healthy Nail.', use_container_width=True)
+                        # FIX 2: Changed use_container_width to use_column_width
+                        result_placeholder.image(result_image_rgb, caption='Processed Image - Healthy Nail.', use_column_width=True)
                     else:
-                        # Diseases were detected (or a mix)
                         message_placeholder.warning("Nail condition(s) detected. This is not a medical diagnosis. Please consult a healthcare professional.")
                         result_image_rgb = cv2.cvtColor(overlay_image, cv2.COLOR_BGR2RGB)
-                        # Update the result placeholder with the processed image
-                        result_placeholder.image(result_image_rgb, caption='Processed Image with Detections.', use_container_width=True)
+                        # FIX 3: Changed use_container_width to use_column_width
+                        result_placeholder.image(result_image_rgb, caption='Processed Image with Detections.', use_column_width=True)
 
                 else:
-                    # Nothing detected above threshold
                     message_placeholder.info(f"No nail conditions (including healthy) were detected above the {CONFIDENCE_THRESHOLD*100:.0f}% confidence threshold.")
-                    # Keep showing the original uploaded image in the result placeholder
-                    result_placeholder.image(image, caption='Uploaded Image.', use_container_width=True)
-
+                    # FIX 4: Changed use_container_width to use_column_width
+                    result_placeholder.image(image, caption='Uploaded Image.', use_column_width=True)
 
             except Exception as e:
                 # Clear placeholders on error and show error message
@@ -269,7 +257,6 @@ with col2:
                 st.warning("Please ensure you uploaded a valid, uncorrupted image file (JPG, PNG, JPEG).")
 
 # --- Sidebar for Ethics Notice ---
-# (Keep the sidebar code exactly the same as the previous response)
 st.sidebar.title("Ethical Considerations")
 st.sidebar.markdown("---")
 st.sidebar.subheader("Notice on Use, Redistribution, and Ethical Compliance")
