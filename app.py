@@ -92,7 +92,7 @@ div[data-testid="stVerticalBlock"]:nth-child(2) > div[style*="flex-direction: co
 /* Style file uploader border */
 div[data-testid="stFileUploader"] section {
     border: 2px dashed #ccc;
-    background-color: #f8f9fa;
+    background-color: #bfb87e;
     padding: 1.5rem; /* Increase padding */
     border-radius: 5px;
 }
