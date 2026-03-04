@@ -4,25 +4,28 @@ import cv2
 import numpy as np
 from PIL import Image
 import io
-import time # Optional: To simulate processing time if needed for testing spinner
+import time 
+import os # Added to handle file paths reliably
 
 # --- Page Configuration (Set Title and Layout) ---
 st.set_page_config(page_title="Nail Disease Segmentation", layout="wide")
 
 # --- Configuration ---
-MODEL_PATH = "best.pt" # Make sure best.pt is in the same folder as app.py
-CONFIDENCE_THRESHOLD = 0.20 # Keep low for detecting healthy/subtle cases
-MASK_ALPHA = 0.5 # Transparency of the segmentation masks (0.0 to 1.0)
-PROJECT_GROUP_NAME = "youngstunna" # Your group name
+# This forces Streamlit to look for best.pt in the exact same folder as this script
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "best.pt")
+
+CONFIDENCE_THRESHOLD = 0.20 
+MASK_ALPHA = 0.5 
+PROJECT_GROUP_NAME = "youngstunna" 
 
 # --- Inject Custom CSS ---
 st.markdown("""
 <style>
 /* --- General App Styling --- */
 body {
-    background-color: #0047AB; /* Light gray background */
+    background-color: #0047AB; 
 }
-/* Hide default Streamlit header and hamburger menu */
 .stApp > header {
     background-color: transparent;
     display: none;
@@ -30,34 +33,30 @@ body {
 #MainMenu { visibility: hidden; }
 footer { visibility: hidden; }
 
-/* Main content area styling */
 .main .block-container {
     padding-top: 2rem;
     padding-bottom: 2rem;
     padding-left: 2rem;
     padding-right: 2rem;
-    max-width: 1200px; /* Limit max width */
+    max-width: 1200px; 
     margin: auto;
-    background-color:#0047AB; /* Light blue-gray page background */
+    background-color:#0047AB; 
     border-radius: 10px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
 /* --- Left Panel Styling (Blue) --- */
-/* Target first column's inner div directly */
 div[data-testid="stVerticalBlock"]:nth-child(1) > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] {
-    background-color: #0047AB; /* Ximilar's blue */
+    background-color: #0047AB; 
     color: white;
     padding: 3rem;
     border-radius: 10px;
-    height: 100%; /* Make panels equal height */
-    box-sizing: border-box; /* Include padding in height calculation */
+    height: 100%; 
+    box-sizing: border-box; 
 }
-/* Force text color in the first column */
 div[data-testid="stVerticalBlock"]:nth-child(1) > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] * {
     color: white !important;
 }
-/* Style headers specifically */
 div[data-testid="stVerticalBlock"]:nth-child(1) > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] h1,
 div[data-testid="stVerticalBlock"]:nth-child(1) > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] h2,
 div[data-testid="stVerticalBlock"]:nth-child(1) > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] h3 {
@@ -66,49 +65,43 @@ div[data-testid="stVerticalBlock"]:nth-child(1) > div[style*="flex-direction: co
 }
 
 /* --- Right Panel Styling (White) --- */
-/* Target second column's inner div directly */
 div[data-testid="stVerticalBlock"]:nth-child(2) > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] {
     background-color: #0047AB;
     padding: 3rem;
     border-radius: 10px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    height: 100%; /* Make panels equal height */
-    box-sizing: border-box; /* Include padding in height calculation */
+    height: 100%; 
+    box-sizing: border-box; 
 }
 
-/* Style file uploader label in the second column */
 div[data-testid="stVerticalBlock"]:nth-child(2) > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] .stFileUploader label {
     font-weight: bold;
-    color: #333 !important; /* Force color */
+    color: #333 !important; 
     padding-bottom: 0.5rem;
 }
-/* Style file uploader border */
 div[data-testid="stFileUploader"] section {
     border: 2px dashed #ccc;
     background-color: #bfb87e;
-    padding: 1.5rem; /* Increase padding */
+    padding: 1.5rem; 
     border-radius: 5px;
 }
 div[data-testid="stFileUploader"] section:hover {
      background-color: #e9ecef;
 }
-/* Style titles/subheaders in the second column */
 div[data-testid="stVerticalBlock"]:nth-child(2) > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] h1,
 div[data-testid="stVerticalBlock"]:nth-child(2) > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] h2,
 div[data-testid="stVerticalBlock"]:nth-child(2) > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] h3 {
-     color: #333 !important; /* Darker text */
+     color: #333 !important; 
      padding-bottom: 1rem;
 }
-/* Style general text in the second column */
 div[data-testid="stVerticalBlock"]:nth-child(2) > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] div,
 div[data-testid="stVerticalBlock"]:nth-child(2) > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] p,
 div[data-testid="stVerticalBlock"]:nth-child(2) > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] li {
-    color: #555 !important; /* Slightly lighter text */
+    color: #555 !important; 
 }
 
-/* Style the spinner text */
 .stSpinner > div > div {
-    color: #0047AB !important; /* Blue spinner text */
+    color: #0047AB !important; 
     font-weight: bold;
 }
 
@@ -124,11 +117,12 @@ def load_yolo_model(model_path):
         model = YOLO(model_path)
         return model
     except Exception as e:
-        print(f"Error loading model: {e}") # Log error for debugging
+        # Pushing the exact error to the UI so we can debug it
+        st.error(f"THE REAL ERROR LOADING MODEL: {e}") 
         return None
 
 # --- Define the two main columns ---
-col1, col2 = st.columns([1, 1.2], gap="large") # Give slightly more space to right column
+col1, col2 = st.columns([1, 1.2], gap="large") 
 
 # --- Content for Left Column (Blue Area) ---
 with col1:
@@ -151,13 +145,12 @@ with col2:
 
     model = load_yolo_model(MODEL_PATH)
     if model is None:
-        st.error(f"FATAL ERROR: Model failed to load from path '{MODEL_PATH}'. Ensure 'best.pt' is in the application directory and not corrupted.")
+        st.error(f"FATAL ERROR: Model failed to load from path '{MODEL_PATH}'. Check the exact error above!")
         st.stop()
     else:
         uploaded_file = st.file_uploader("Choose an image (JPG, PNG, JPEG)...", type=["jpg", "png", "jpeg"], label_visibility="visible")
 
         if uploaded_file is not None:
-            # Create placeholders for results outside the spinner
             result_placeholder = st.empty()
             message_placeholder = st.empty()
 
@@ -167,10 +160,8 @@ with col2:
                 img_cv = np.array(image.convert('RGB'))
                 img_cv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2BGR)
 
-                # FIX 1: Changed use_container_width to use_column_width
                 result_placeholder.image(image, caption='Uploaded Image.', use_column_width=True)
 
-                # Use st.spinner for the processing block
                 with st.spinner("Analyzing image..."):
                     results = model(img_cv, conf=CONFIDENCE_THRESHOLD)
 
@@ -229,28 +220,24 @@ with col2:
                                                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2,
                                                     lineType=cv2.LINE_AA)
 
-                # --- Refined Display Logic (Outside Spinner) ---
+                # --- Refined Display Logic ---
                 if detection_made:
                     is_only_healthy = detected_classes == {'healthy_nail'}
 
                     if is_only_healthy:
                         message_placeholder.success("Healthy nail detected. No diseases found based on the analysis.")
                         result_image_rgb = cv2.cvtColor(overlay_image, cv2.COLOR_BGR2RGB)
-                        # FIX 2: Changed use_container_width to use_column_width
                         result_placeholder.image(result_image_rgb, caption='Processed Image - Healthy Nail.', use_column_width=True)
                     else:
                         message_placeholder.warning("Nail condition(s) detected. This is not a medical diagnosis. Please consult a healthcare professional.")
                         result_image_rgb = cv2.cvtColor(overlay_image, cv2.COLOR_BGR2RGB)
-                        # FIX 3: Changed use_container_width to use_column_width
                         result_placeholder.image(result_image_rgb, caption='Processed Image with Detections.', use_column_width=True)
 
                 else:
                     message_placeholder.info(f"No nail conditions (including healthy) were detected above the {CONFIDENCE_THRESHOLD*100:.0f}% confidence threshold.")
-                    # FIX 4: Changed use_container_width to use_column_width
                     result_placeholder.image(image, caption='Uploaded Image.', use_column_width=True)
 
             except Exception as e:
-                # Clear placeholders on error and show error message
                 result_placeholder.empty()
                 message_placeholder.empty()
                 st.error(f"An error occurred during image processing: {e}")
