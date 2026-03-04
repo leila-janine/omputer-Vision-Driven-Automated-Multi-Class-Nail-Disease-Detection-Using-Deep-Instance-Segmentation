@@ -4,23 +4,19 @@ import cv2
 import numpy as np
 from PIL import Image
 import io
+import os
+import time
 
 # --- Page Configuration ---
-st.set_page_config(
-    page_title="Nail Disease Segmentation",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Nail Disease Segmentation", layout="wide", initial_sidebar_state="expanded")
 
 # --- Configuration ---
-import os
-# Resolve model path relative to this script's location (works on Streamlit Cloud)
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "best.pt")
 CONFIDENCE_THRESHOLD = 0.20
 MASK_ALPHA = 0.5
 PROJECT_GROUP_NAME = "youngstunna"
 
-# --- Inject Custom CSS ---
+# --- Inject Custom CSS (Dark Theme) ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -85,7 +81,7 @@ header { visibility: hidden; }
     border: 1px solid #2d3748 !important;
 }
 
-/* ── MAIN CONTENT TEXT ── */
+/* ── MAIN TEXT ── */
 .main h1, .main h2, .main h3 {
     color: #f7fafc !important;
     font-weight: 700 !important;
@@ -254,21 +250,25 @@ header { visibility: hidden; }
 """, unsafe_allow_html=True)
 
 
-# --- Model Loading ---
+# --- Model Loading (Cached) ---
 @st.cache_resource
 def load_yolo_model(model_path):
-    import traceback, os
+    """Loads the YOLO model."""
     try:
         if not os.path.exists(model_path):
-            st.session_state["model_error"] = f"File not found: {model_path}"
+            st.session_state["model_error"] = f"File not found at: {model_path}"
             return None
         file_size_mb = os.path.getsize(model_path) / (1024 * 1024)
         if file_size_mb < 0.1:
-            st.session_state["model_error"] = f"File too small ({file_size_mb:.2f} MB) - likely corrupted or a Git LFS pointer, not the real model."
+            st.session_state["model_error"] = (
+                f"File is only {file_size_mb:.3f} MB — this is likely a Git LFS pointer, "
+                "not the actual model weights. Please push the real file using Git LFS."
+            )
             return None
         model = YOLO(model_path)
         return model
     except Exception as e:
+        import traceback
         st.session_state["model_error"] = f"{type(e).__name__}: {e}"
         st.session_state["model_traceback"] = traceback.format_exc()
         return None
@@ -279,7 +279,6 @@ def load_yolo_model(model_path):
 # ══════════════════════════════════════════
 st.sidebar.title("Ethical Considerations")
 st.sidebar.markdown("---")
-
 st.sidebar.subheader("Notice on Use, Redistribution, and Ethical Compliance")
 st.sidebar.warning(
     "Redistribution, reproduction, or use of this material beyond personal reference is strictly prohibited "
@@ -287,7 +286,6 @@ st.sidebar.warning(
     "whether for commercial, academic, or institutional purposes—violates intellectual property rights and may "
     "result in legal or disciplinary action."
 )
-
 st.sidebar.subheader("AI Governance and Ethics Considerations")
 st.sidebar.error("This work must not be used in ways that:")
 st.sidebar.markdown("""
@@ -296,12 +294,8 @@ st.sidebar.markdown("""
 * Enable harmful applications, including surveillance, profiling, or uses that undermine human rights.
 * Misrepresent authorship or credit, such as plagiarism or omission of proper citations.
 """)
-
 st.sidebar.subheader("Responsible Use Principles")
-st.sidebar.info(
-    "Users are expected to follow responsible research and innovation practices, "
-    "ensuring that any derivative work is:"
-)
+st.sidebar.info("Users are expected to follow responsible research and innovation practices, ensuring that any derivative work is:")
 st.sidebar.markdown("""
 * **Transparent** → Clear acknowledgment of sources and methodology.
 * **Accountable** → Proper attribution and disclosure of limitations.
@@ -315,13 +309,13 @@ st.sidebar.caption(
 
 
 # ══════════════════════════════════════════
-#  MAIN CONTENT — TWO COLUMNS
+#  MAIN LAYOUT — TWO COLUMNS
 # ══════════════════════════════════════════
-col1, col2 = st.columns([1, 1.1], gap="large")
+col1, col2 = st.columns([1, 1.2], gap="large")
 
 # ── LEFT COLUMN ──
 with col1:
-    st.markdown(f'<p class="main-title">Nail Disease Segmentation</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-title">Nail Disease Segmentation</p>', unsafe_allow_html=True)
     st.markdown(
         f'<p class="main-subtitle">'
         f'An AI-powered application developed by <strong style="color:#e2e8f0">Group {PROJECT_GROUP_NAME}</strong> '
@@ -331,9 +325,7 @@ with col1:
         f'</p>',
         unsafe_allow_html=True
     )
-
     st.markdown("---")
-
     st.markdown('<p class="how-label">How it works:</p>', unsafe_allow_html=True)
     st.markdown("""
     <div class="step-row"><span class="step-dot">1.</span><span>Upload a clear image of a nail.</span></div>
@@ -350,8 +342,20 @@ with col2:
     model = load_yolo_model(MODEL_PATH)
 
     if model is None:
-        st.error(
-        st.error(f"FATAL ERROR: Model failed to load. Resolved path: {MODEL_PATH}. Ensure best.pt is committed to GitHub in the same folder as app.py.")
+        err = st.session_state.get("model_error", "Unknown error")
+        tb = st.session_state.get("model_traceback", "")
+        st.error(f"Model failed to load.")
+        st.markdown(f"**Path:** `{MODEL_PATH}`")
+        st.markdown(f"**Reason:** {err}")
+        if tb:
+            with st.expander("Full traceback"):
+                st.code(tb)
+        st.info(
+            "**Common fix:** If reason mentions 'Git LFS pointer' or tiny file size, "
+            "your model was not properly pushed. Run:\n\n"
+            "```\ngit lfs install\ngit lfs track '*.pt'\ngit add .gitattributes best.pt\n"
+            "git commit -m 'Add model via LFS'\ngit push\n```"
+        )
         st.stop()
     else:
         uploaded_file = st.file_uploader(
@@ -370,7 +374,7 @@ with col2:
                 img_cv = np.array(image.convert('RGB'))
                 img_cv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2BGR)
 
-                result_placeholder.image(image, caption='Uploaded Image', use_container_width=True)
+                result_placeholder.image(image, caption='Uploaded Image.', use_container_width=True)
 
                 with st.spinner("Analyzing image..."):
                     results = model(img_cv, conf=CONFIDENCE_THRESHOLD)
@@ -381,7 +385,7 @@ with col2:
 
                     names = model.names
                     np.random.seed(42)
-                    colors = [tuple(np.random.randint(80, 240, 3).tolist()) for _ in range(len(names))]
+                    colors = [tuple(np.random.randint(100, 256, 3).tolist()) for _ in range(len(names))]
 
                     for r in results:
                         boxes = r.boxes.xyxy.cpu().numpy()
@@ -396,54 +400,67 @@ with col2:
                         else:
                             class_ids = np.array([], dtype=int)
 
+                        # Segmentation Masks
                         if r.masks is not None and len(class_ids) > 0:
                             masks = r.masks.data.cpu().numpy()
-                            oh, ow = overlay_image.shape[:2]
+                            overlay_h, overlay_w = overlay_image.shape[:2]
                             for i, mask in enumerate(masks):
                                 if i < len(class_ids):
-                                    m = cv2.resize(mask, (ow, oh), interpolation=cv2.INTER_NEAREST)
-                                    m8 = m.astype(np.uint8) * 255
-                                    cid = class_ids[i]
-                                    if 0 <= cid < len(colors):
-                                        color = colors[cid]
-                                        cm = np.zeros_like(overlay_image, dtype=np.uint8)
-                                        for c in range(3):
-                                            cm[:, :, c] = np.where(m8 == 255, color[c], 0)
-                                        overlay_image = cv2.addWeighted(overlay_image, 1.0, cm, MASK_ALPHA, 0)
+                                    mask_resized = cv2.resize(mask, (overlay_w, overlay_h), interpolation=cv2.INTER_NEAREST)
+                                    mask_uint8 = mask_resized.astype(np.uint8) * 255
+                                    class_id = class_ids[i]
+                                    if 0 <= class_id < len(colors):
+                                        color = colors[class_id]
+                                        colored_mask = np.zeros_like(overlay_image, dtype=np.uint8)
+                                        for c_idx in range(3):
+                                            colored_mask[:, :, c_idx] = np.where(mask_uint8 == 255, color[c_idx], 0)
+                                        overlay_image = cv2.addWeighted(overlay_image, 1.0, colored_mask, MASK_ALPHA, 0)
 
+                        # Bounding Boxes and Labels
                         if class_ids.size > 0:
                             for i, (box, score) in enumerate(zip(boxes, scores)):
                                 if i < len(class_ids):
-                                    cid = class_ids[i]
-                                    if 0 <= cid < len(names):
+                                    cls_id = class_ids[i]
+                                    if 0 <= cls_id < len(names):
                                         x1, y1, x2, y2 = map(int, box)
-                                        label = f"{names[cid]} {score:.2f}"
-                                        color = colors[cid]
+                                        label = f"{names[cls_id]} {score:.2f}"
+                                        color = colors[cls_id]
                                         cv2.rectangle(overlay_image, (x1, y1), (x2, y2), color, 2)
-                                        (lw, lh), bl = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-                                        y_bg = max(0, y1 - lh - bl - 5)
-                                        cv2.rectangle(overlay_image, (x1, y_bg), (x1 + lw, y1), color, cv2.FILLED)
-                                        cv2.putText(overlay_image, label, (x1, max(10, y1 - bl - 3)),
-                                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2,
-                                                    lineType=cv2.LINE_AA)
+                                        (label_width, label_height), baseline = cv2.getTextSize(
+                                            label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
+                                        )
+                                        y_text_bg_top = max(0, y1 - label_height - baseline - 5)
+                                        cv2.rectangle(
+                                            overlay_image, (x1, y_text_bg_top),
+                                            (x1 + label_width, y1), color, cv2.FILLED
+                                        )
+                                        y_text_pos = max(10, y1 - baseline - 3)
+                                        cv2.putText(
+                                            overlay_image, label, (x1, y_text_pos),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2,
+                                            lineType=cv2.LINE_AA
+                                        )
 
-                result_image_rgb = cv2.cvtColor(overlay_image, cv2.COLOR_BGR2RGB)
-
+                # --- Display Logic ---
                 if detection_made:
-                    if detected_classes == {'healthy_nail'}:
-                        message_placeholder.success("✅ Healthy nail detected. No diseases found.")
-                        result_placeholder.image(result_image_rgb, caption='Processed Image — Healthy Nail', use_container_width=True)
+                    is_only_healthy = detected_classes == {'healthy_nail'}
+                    result_image_rgb = cv2.cvtColor(overlay_image, cv2.COLOR_BGR2RGB)
+
+                    if is_only_healthy:
+                        message_placeholder.success("✅ Healthy nail detected. No diseases found based on the analysis.")
+                        result_placeholder.image(result_image_rgb, caption='Processed Image - Healthy Nail.', use_container_width=True)
                     else:
-                        message_placeholder.warning("⚠️ Nail condition(s) detected. Not a medical diagnosis — consult a healthcare professional.")
-                        result_placeholder.image(result_image_rgb, caption='Processed Image — Detections Highlighted', use_container_width=True)
+                        message_placeholder.warning("⚠️ Nail condition(s) detected. This is not a medical diagnosis. Please consult a healthcare professional.")
+                        result_placeholder.image(result_image_rgb, caption='Processed Image with Detections.', use_container_width=True)
                 else:
                     message_placeholder.info(
-                        f"No conditions detected above the {CONFIDENCE_THRESHOLD * 100:.0f}% confidence threshold."
+                        f"No nail conditions (including healthy) were detected above the "
+                        f"{CONFIDENCE_THRESHOLD * 100:.0f}% confidence threshold."
                     )
-                    result_placeholder.image(image, caption='Uploaded Image', use_container_width=True)
+                    result_placeholder.image(image, caption='Uploaded Image.', use_container_width=True)
 
             except Exception as e:
                 result_placeholder.empty()
                 message_placeholder.empty()
-                st.error(f"An error occurred during processing: {e}")
-                st.warning("Please ensure you uploaded a valid image file (JPG, PNG, JPEG).")
+                st.error(f"An error occurred during image processing: {e}")
+                st.warning("Please ensure you uploaded a valid, uncorrupted image file (JPG, PNG, JPEG).")
